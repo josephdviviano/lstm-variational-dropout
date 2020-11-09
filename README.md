@@ -1,7 +1,7 @@
 Variational Dropout for LSTMs
 -----------------------------
 
-A simple implementation of
+A simple pytorch implementation of
 
 A Theoretically Grounded Application of Dropout in Recurrent Neural Networks
 Yarin Gal & Zoubin Ghahramani, 2016. [arxiv](https://arxiv.org/abs/1512.05287)
