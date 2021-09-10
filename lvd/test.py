@@ -1,4 +1,4 @@
-from lstm import LSTMModel, SampleDrop
+from lvd.model import LSTMModel, SampleDrop
 import torch
 
 DATA_SHAPE = (20, 5, 10)
@@ -29,7 +29,7 @@ def test_sampledrop():
 
 def test_lstm_mask():
 
-    model = LSTMModel(input_size=10, n_layers=1, hidden_size=10, 
+    model = LSTMModel(input_size=10, n_layers=1, hidden_size=10,
     	              dropout_i=0.5, dropout_h=0.5)
 
     optim = torch.optim.SGD(model.parameters(), lr=0.01)
