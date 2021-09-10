@@ -6,8 +6,8 @@ import torch.nn.functional as F
 
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_size, n_layers, hidden_size, 
-                 dropout_i=0, dropout_h=0):
+    def __init__(self, input_size, n_layers, hidden_size,
+                 dropout_i=0, dropout_h=0, return_states=False):
         """
         An LSTM model with Variational Dropout applied to the inputs and
         model activations. For details see Eq. 7 of
@@ -16,25 +16,32 @@ class LSTMModel(nn.Module):
         Neural Networks. Gal & Ghahramani, 2016.
 
         Note that this is equivalent to the weight-dropping scheme they
-        propose in Eq. 5 (but not Eq. 6). 
+        propose in Eq. 5 (but not Eq. 6).
+
+        Returns the hidden states for the final layer. Optionally also returns
+        the hidden and cell states for all layers.
 
         Args:
             input_size (int): input feature size.
             n_layers (int): number of LSTM layers.
             hidden_size (int): hidden layer size of all layers.
             dropout_i (float): dropout rate of the inputs (t).
-            dropout_h (float): dropout rate of the state (t-1). 
+            dropout_h (float): dropout rate of the state (t-1).
+            return_states (bool): If true, returns hidden and cell statees for
+                all cells during the forward pass.
         """
         super(LSTMModel, self).__init__()
 
         assert all([0 <= x < 1 for x in [dropout_i, dropout_h]])
         assert all([0 < x for x in [input_size, n_layers, hidden_size]])
+        assert isinstance(return_states, bool)
 
         self._input_size = input_size
         self._n_layers = n_layers
         self._hidden_size = hidden_size
         self._dropout_i = dropout_i
         self._dropout_h = dropout_h
+        self._return_states = return_states
 
         cells = []
         for i in range(n_layers):
@@ -77,19 +84,25 @@ class LSTMModel(nn.Module):
         """Forward pass through the LSTM.
 
         Args:
-            X (tensor): input with dimensions seq_len, batch_size, input_size
+            X (tensor): input with dimensions batch_size, seq_len, input_size
 
-        Returns: Output dictionary containing ht from the final LSTM, and all 
+        Returns: Output ht from the final LSTM cell, and optionally all
             intermediate states.
         """
+        states = [] if self._return_states else None
+        X = X.permute(1, 0, 2)
         seq_len, batch_size, input_size = X.shape
-        states = []
 
         for cell in self._cells:
             ht, ct = [], []
-            h, c = self._new_state(batch_size)
 
-            self._input_drop.set_weights(X[0, ...])
+            # Initialize new state.
+            h, c = self._new_state(batch_size)
+            h = h.to(X.device)
+            c = c.to(X.device)
+
+            # Fix dropout weights for this cell.
+            self._input_drop.set_weights(X[0, ...])  # Removes time dimension.
             self._state_drop.set_weights(h)
 
             for sample in X:
@@ -98,13 +111,16 @@ class LSTMModel(nn.Module):
                 ht.append(h)
                 ct.append(c)
 
-            ht = torch.stack(ht, dim=0)
-            ct = torch.stack(ct, dim=0)
-            states.append((ht, ct))
+            # Output is again [batch, seq_len, n_feat].
+            ht = torch.stack(ht, dim=0).permute(1, 0, 2)
+            ct = torch.stack(ct, dim=0).permute(1, 0, 2)
 
-            X = ht
+            if self._return_states:
+                states.append((ht, ct))
 
-        return {'ht': ht, 'states': states}
+            X = ht.clone().permute(1, 0, 2)  # Input for next cell.
+
+        return (ht, states)
 
 
 class SampleDrop(nn.Module):
@@ -119,9 +135,9 @@ class SampleDrop(nn.Module):
     def set_weights(self, X):
         """Calculates a new dropout mask."""
         assert len(X.shape) == 2
-        
+
         mask = Variable(torch.ones(X.size(0), X.size(1)), requires_grad=False)
-        
+
         if X.is_cuda:
             mask = mask.cuda()
 
