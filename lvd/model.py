@@ -15,7 +15,7 @@ class LSTMModel(nn.Module):
         A Theoretically Grounded Application of Dropout in Recurrent
         Neural Networks. Gal & Ghahramani, 2016.
 
-        Note that this is equivilant to the weight-dropping scheme they
+        Note that this is equivalent to the weight-dropping scheme they
         propose in Eq. 5 (but not Eq. 6). 
 
         Args:
@@ -59,13 +59,17 @@ class LSTMModel(nn.Module):
         return self._hidden_size
 
     @property
-    def dropout_w(self):
-        return self._hidden_size
+    def dropout_i(self):
+        return self._dropout_i
+
+    @property
+    def dropout_h(self):
+        return self._dropout_h
 
     def _new_state(self, batch_size):
         """Initalizes states."""
-        h = torch.zeros(batch_size, self._hidden_size)
-        c = torch.zeros(batch_size, self._hidden_size)
+        h = Variable(torch.zeros(batch_size, self._hidden_size))
+        c = Variable(torch.zeros(batch_size, self._hidden_size))
 
         return (h, c)
 
